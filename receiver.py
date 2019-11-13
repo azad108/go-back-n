@@ -20,13 +20,15 @@ def recieveGoBackN():
 	while True:
 		print('-----------------------------')
 		print("LEN = "+str(len(packets)))
-		dataPacket, addr = dataSocket.recvfrom(2048)
+		dataPacket, addr = dataSocket.recvfrom(6144)
 		dataPacket = packet.packet.parse_udp_data(dataPacket)
-
+		print("received packet = "+str(dataPacket.seq_num)) 
 		if dataPacket.type == 2 and dataPacket.seq_num == curState.expectedSeqNum: ## aka EOT received successfully
 			## send an EOT packet back to the receiver
 			lastAcked = dataPacket.seq_num
+			## will send back EOT packet to mark the End of transmission
 			ackSocket.sendto(packet.packet.create_eot(curState.expectedSeqNum).get_udp_data(), (curState.emHostAddr, curState.ackPort))
+			
 			f = open(curState.filename, "w")
 			f.write("") ## create the file / empty it if there's previous content 
 			f.close()
@@ -50,7 +52,7 @@ def recieveGoBackN():
 			print ("updated expected: "+str(curState.expectedSeqNum))
 
 		else:
-			if lastAcked != -1: 
+			if lastAcked != -1:
 				ackSocket.sendto(packet.packet.create_ack(lastAcked).get_udp_data(), (curState.emHostAddr, curState.ackPort))
 	dataSocket.close()
 	ackSocket.close()

@@ -15,56 +15,61 @@ class cur_state:
 
 curState = cur_state()
 lock = threading.Condition() 
-dataSocket = socket(AF_INET, SOCK_DGRAM) # the UDP socket for sending data packets over'
-
-def resendUnacked():
-	with lock:
-		# print ("SENDING N AGAIN!!!!!!!!!!!!!!!!!!!!!!!!!!")
-		print (threading.currentThread().getName()+": "+ str(threading.active_count()))
-		
-		# print ("RESENDERRRR : "+str(curState.nextSeqNum) + " " + str(curState.base))
-		# print("LENGTH = " + str(len(packets)))
-		for i in range(curState.base, curState.nextSeqNum):
-			print ("resent : "+str(i))
-			if i >= len(packets): break
-			dataSocket.sendto(packets[i].get_udp_data(), (curState.emHostAddr, curState.dataPort))
-		lock.notify()
-
+dataSocket = socket(AF_INET, SOCK_DGRAM) # the UDP socket for sending data packets over
 
 
 def sendPackets():
-	with lock:
-		# print ("NEW SENDDDDDDDDDDDDDDDDDDDDDDDDDDDD")
+	with lock: 
 		print (threading.currentThread().getName()+": "+ str(threading.active_count()))
 		if curState.nextSeqNum >= curState.N: curState.nextSeqNum = curState.nextSeqNum % curState.N
+		timer = threading.Timer(0.1, resendUnacked)
 		while curState.nextSeqNum < len(packets):
 			if curState.nextSeqNum < curState.N:
 				print ("sent : "+str(curState.nextSeqNum))
 				# print("LENGTH = " + str(len(packets)))
 				dataSocket.sendto(packets[curState.nextSeqNum].get_udp_data(), (curState.emHostAddr, curState.dataPort)) ## sending the packet over dataSocket 
 				if curState.base == curState.nextSeqNum: 
-					timer = threading.Timer(0.1, resendUnacked)
 					timer.start()
+				elif curState.N == curState.nextSeqNum:
+					timer.cancel()
+
 				curState.nextSeqNum += 1 
 				# if curState.nextSeqNum >= len(packets): timer.cancel()
 			else:
 				lock.wait()		
 
 
+def resendUnacked():
+	with lock: 
+		print (threading.currentThread().getName()+": "+ str(threading.active_count()))
+		
+		# print ("RESENDERRRR : "+str(curState.nextSeqNum) + " " + str(curState.base))
+		timer = threading.Timer(0.1, sendPackets)
+		timer.start()
+		for i in range(curState.base, curState.nextSeqNum):
+			print ("resent : "+str(i))
+			print("LENGTH = " + str(len(packets)))
+			if i >= len(packets): break
+			dataSocket.sendto(packets[i].get_udp_data(), (curState.emHostAddr, curState.dataPort))
+		timer.cancel()
+		lock.notify()
 
 def recvAcks():
 	ackSocket = socket(AF_INET, SOCK_DGRAM) # the UDP socket to receive ack packets over
 	ackSocket.bind(('', curState.ackPort))
 	while len(packets) > 0: 
 		print (threading.currentThread().getName()+": "+str(threading.active_count()))
-		with lock:
-			# print("RECEIVINGGGGGGGG!!!!!!!!!!!!!!")
+		with lock: 
+			if len(packets) < 0: break
+			timer = threading.Timer(0.1, resendUnacked) 
+			timer.start()
 			lock.notify()
 			ackPacket, addr = ackSocket.recvfrom(2048)
 			ackPacket = packet.packet.parse_udp_data(ackPacket)
 			print("recieved ACK For: " + str(ackPacket.seq_num))
 			topNum = packets[0].seq_num+32
 			ackNum = ackPacket.seq_num+32 
+
 
 			print ("Array top : "+str(packets[0].seq_num) + " - " + " ack seq: " +str(ackPacket.seq_num)) 
 			if (topNum > ackNum):
@@ -74,9 +79,11 @@ def recvAcks():
 				lock.wait()
 				continue
 
-			
-			timer = threading.Timer(0.1, resendUnacked) 
-			timer.start()
+			print(packets[0].data[0:20] )
+			print(ackPacket.data[0:20])
+			if packets[0].data[0:20] == ackPacket.data[0:20]: print("cFFFFFFFF")
+			# timer = threading.Timer(0.1, resendUnacked) 
+			# timer.start()
 			ackedPacket = packets.pop(0)
 			curState.nextSeqNum -= 1
 			if curState.nextSeqNum >= curState.N: 
@@ -87,13 +94,13 @@ def recvAcks():
 			if ackPacket.type == 2: ## on receipt of EOT packet's ack we exit thread
 				print("END OF TRANSS")
 				dataSocket.close()
-				packets.pop(0)
 				break 	
-
+			lock.notify()
 	ackSocket.close()
 
 
 def transmitGoBackN():
+	## calling the initial 2 threads for sending data packets and receiving their corr. ACKs
 	sendDataThread = threading.Thread(name='PACKET SENDER', target=sendPackets, args = ())
 	recvAcksThread = threading.Thread(name='ACK RECEIVER', target=recvAcks, args = ())
 	sendDataThread.start()
