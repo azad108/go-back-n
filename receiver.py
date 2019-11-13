@@ -1,8 +1,11 @@
+## CS456 F19 A2
+## Student: Azad Rahman (20638008)
+
 import string, sys, packet
 from socket import *
 
 packets = []
-          
+ 
 class cur_state:
 	def __init__(self):
 		self.dataPort = 0
