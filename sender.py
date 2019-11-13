@@ -26,7 +26,7 @@ def createFiles():
 	finishTransmission = datetime.datetime.now()
 	executionTime = (finishTransmission - curState.beginTransmission).total_seconds()
 	f = open("time.log", "w")
-	f.write(str(executionTime) + " seconds") ## create the file / empty it if there's previous content 
+	f.write(str(executionTime) + " seconds" + '\n') ## create the file / empty it if there's previous content 
 	f.close()
 	
 	f = open("seqnum.log", "w")
@@ -49,16 +49,19 @@ def createFiles():
 
 
 def sendPackets():
+
 	with lock: 
 		print (threading.currentThread().getName()+": "+ str(threading.active_count()))
 		if curState.nextSeqNum >= curState.N: curState.nextSeqNum = curState.nextSeqNum % curState.N
 		print("seq_num = " + str(curState.nextSeqNum))
 		while curState.nextSeqNum < len(packets):
 			if curState.nextSeqNum < curState.N: 
+
 				print("SEND LENGTH = " + str(len(packets)))
 				dataSocket.sendto(packets[curState.nextSeqNum].get_udp_data(), (curState.emHostAddr, curState.dataPort)) ## sending the packet over dataSocket 
 				print ("sent : "+str(curState.nextSeqNum))
 				sendSequence.append(packets[curState.nextSeqNum].seq_num) ## append to the send array since it was a success
+				 
 				timer = threading.Timer(0.1, resendUnacked)
 				if curState.base == curState.nextSeqNum: 
 					# if not timer.is_alive(): 
@@ -69,7 +72,7 @@ def sendPackets():
 					timer.cancel()
 
 				curState.nextSeqNum += 1
-				lock.notify() ## notify ack receiver about the transmission
+				# lock.notify() ## notify ack receiver about the transmission
 				# if curState.nextSeqNum >= len(packets): timer.cancel()
 			else:
 				lock.wait()	 
@@ -81,9 +84,9 @@ def resendUnacked():
 		
 		# print ("RESENDERRRR : "+str(curState.nextSeqNum) + " " + str(curState.base))
 		timer = threading.Timer(0.1, sendPackets)
-		# if not timer.is_alive(): timer.start()
-		timer.start()
-		# lock.notify()
+		if not timer.is_alive(): timer.start()
+		# timer.start()
+		lock.notify()
 		## waiting for the first packet to be acked when p-value is too high
 		while not curState.firstPacket:
 			dataSocket.sendto(packets[0].get_udp_data(), (curState.emHostAddr, curState.dataPort))
@@ -108,9 +111,9 @@ def recvAcks():
 		print (threading.currentThread().getName()+": "+str(threading.active_count()))
 		with lock: 
 			if len(packets) < 0: break
-			timer = threading.Timer(0.2, sendPackets) 
+			timer = threading.Timer(0.1, resendUnacked) 
 			timer.start()
-			lock.notify() 
+			lock.notify()
 			ackPacket, addr = ackSocket.recvfrom(2048)
 			ackPacket = packet.packet.parse_udp_data(ackPacket) 
 
@@ -128,12 +131,14 @@ def recvAcks():
 			if (topNum > ackNum):
 				timer = threading.Timer(0.1, resendUnacked) 
 				timer.start()
+				lock.notify()
 				print("operation failed______________________________________________")
 				# lock.wait()
 				continue
 
-			# timer = threading.Timer(0.1, resendUnacked) 
-			# timer.start()
+			timer = threading.Timer(0.1, resendUnacked) 
+			timer.start()
+			lock.notify()
 			ackedPacket = packets.pop(0)
 			curState.nextSeqNum -= 1
 			if curState.nextSeqNum >= curState.N: 
@@ -154,8 +159,8 @@ def recvAcks():
 def transmitGoBackN():
 	## calling the initial 2 threads for sending data packets and receiving their corr. ACKs
 	sendDataThread = threading.Thread(name='PACKET SENDER', target=sendPackets, args = ())
-	recvAcksThread = threading.Thread(name='ACK RECEIVER', target=recvAcks, args = ())
 	sendDataThread.start()
+	recvAcksThread = threading.Thread(name='ACK RECEIVER', target=recvAcks, args = ())
 	recvAcksThread.start()
 
 	return 0
