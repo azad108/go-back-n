@@ -1,0 +1,198 @@
+422
+PACKET SENDDD
+send : 0 0
+ACK RECEPTION:
+send : 1 0
+send : 2 0
+send : 3 0
+send : 4 0
+send : 5 0
+send : 6 0
+send : 7 0
+send : 8 0
+send : 9 0
+tmp = 1
+ACK : 10 -  new base: 1
+ack seqNum: 0
+ACK RECEPTION:
+send : 10 1
+tmp = 2
+ACK : 11 -  new base: 2
+ack seqNum: 1
+ACK RECEPTION:
+tmp = 3
+ACK : 11 -  new base: 3
+ack seqNum: 2
+ACK RECEPTION:
+send : 11 3
+send : 12 3
+tmp = 4
+ACK : 13 -  new base: 4
+ack seqNum: 3
+ACK RECEPTION:
+send : 13 4
+tmp = 5
+ACK : 14 -  new base: 5
+ack seqNum: 4
+ACK RECEPTION:
+send : 14 5
+tmp = 6
+ACK : 15 -  new base: 6
+ack seqNum: 5
+ACK RECEPTION:
+send : 15 6
+tmp = 7
+ACK : 16 -  new base: 7
+ack seqNum: 6
+ACK RECEPTION:
+send : 16 7
+tmp = 8
+ACK : 17 -  new base: 8
+ack seqNum: 7
+ACK RECEPTION:
+send : 17 8
+tmp = 9
+ACK : 18 -  new base: 9
+ack seqNum: 8
+ACK RECEPTION:
+send : 18 9
+tmp = 10
+ACK : 19 -  new base: 10
+ack seqNum: 9
+ACK RECEPTION:
+send : 19 10
+tmp = 11
+ACK : 20 -  new base: 11
+ack seqNum: 10
+ACK RECEPTION:
+send : 20 11
+tmp = 12
+ACK : 21 -  new base: 12
+ack seqNum: 11
+ACK RECEPTION:
+tmp = 13
+ACK : 21 -  new base: 13
+ack seqNum: 12
+ACK RECEPTION:
+tmp = 14
+ACK : 21 -  new base: 14
+ack seqNum: 13
+ACK RECEPTION:
+tmp = 15
+ACK : 21 -  new base: 15
+ack seqNum: 14
+ACK RECEPTION:
+tmp = 16
+ACK : 21 -  new base: 16
+ack seqNum: 15
+ACK RECEPTION:
+tmp = 17
+ACK : 21 -  new base: 17
+ack seqNum: 16
+ACK RECEPTION:
+tmp = 18
+ACK : 21 -  new base: 18
+ack seqNum: 17
+ACK RECEPTION:
+send : 21 18
+send : 22 18
+send : 23 18
+send : 24 18
+send : 25 18
+send : 26 18
+send : 27 18
+tmp = 19
+ACK : 28 -  new base: 19
+ack seqNum: 18
+ACK RECEPTION:
+tmp = 20
+ACK : 28 -  new base: 20
+ack seqNum: 19
+ACK RECEPTION:
+tmp = 21
+ACK : 28 -  new base: 21
+ack seqNum: 20
+ACK RECEPTION:
+tmp = 22
+ACK : 28 -  new base: 22
+ack seqNum: 21
+ACK RECEPTION:
+tmp = 23
+ACK : 28 -  new base: 23
+ack seqNum: 22
+ACK RECEPTION:
+tmp = 24
+ACK : 28 -  new base: 24
+ack seqNum: 23
+ACK RECEPTION:
+tmp = 25
+ACK : 28 -  new base: 25
+ack seqNum: 24
+ACK RECEPTION:
+tmp = 26
+ACK : 28 -  new base: 26
+ack seqNum: 25
+ACK RECEPTION:
+tmp = 27
+ACK : 28 -  new base: 27
+ack seqNum: 26
+ACK RECEPTION:
+send : 28 27
+send : 29 27
+send : 30 27
+send : 31 27
+send : 32 27
+send : 33 27
+send : 34 27
+send : 35 27
+send : 36 27
+tmp = 28
+ACK : 37 -  new base: 28
+ack seqNum: 27
+ACK RECEPTION:
+send : 37 28
+tmp = 29
+ACK : 38 -  new base: 29
+ack seqNum: 28
+ACK RECEPTION:
+send : 38 29
+tmp = 30
+ACK : 39 -  new base: 30
+ack seqNum: 29
+ACK RECEPTION:
+tmp = 31
+ACK : 39 -  new base: 31
+ack seqNum: 30
+ACK RECEPTION:
+tmp = 32
+ACK : 39 -  new base: 32
+ack seqNum: 31
+ACK RECEPTION:
+tmp = 1
+ACK : 39 -  new base: 33
+ack seqNum: 0
+ACK RECEPTION:
+tmp = 2
+ACK : 39 -  new base: 34
+ack seqNum: 1
+ACK RECEPTION:
+tmp = 3
+ACK : 39 -  new base: 35
+ack seqNum: 2
+ACK RECEPTION:
+tmp = 4
+ACK : 39 -  new base: 36
+ack seqNum: 3
+ACK RECEPTION:
+tmp = 5
+ACK : 39 -  new base: 37
+ack seqNum: 4
+ACK RECEPTION:
+tmp = 6
+ACK : 39 -  new base: 38
+ack seqNum: 5
+ACK RECEPTION:
+tmp = 7
+ACK : 39 -  new base: 39
+ack seqNum: 6
+ACK RECEPTION:

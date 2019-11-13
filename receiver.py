@@ -18,6 +18,7 @@ def recieveGoBackN():
 	dataSocket.bind(('', curState.dataPort)) 
 	while True:
 		print('-----------------------------')
+		print(str(len(packets)))
 		dataPacket, addr = dataSocket.recvfrom(2048)
 		dataPacket = packet.packet.parse_udp_data(dataPacket)
 
