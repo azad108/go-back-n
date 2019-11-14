@@ -22,11 +22,12 @@ def recieveGoBackN():
 	dataSocket = socket(AF_INET, SOCK_DGRAM) # the UDP socket for receiving data packets over
 	ackSocket = socket(AF_INET, SOCK_DGRAM) # the UDP socket to receive ack packets over
 	dataSocket.bind(('', curState.dataPort)) 
-	lastAcked = -1
+	lastAcked = packet.packet.create_ack(31) ## initial ACK for establishing connection 
+											## useful for high p-value connections
 	while True:
 		if DEBUG:
 			print('-----------------------------')
-			print("LEN = "+str(len(packets)))
+			print("LEN = "+str(len(packets))) 
 		dataPacket, addr = dataSocket.recvfrom(6144)
 		dataPacket = packet.packet.parse_udp_data(dataPacket)
 		dataSequence.append(dataPacket.seq_num)
@@ -35,11 +36,11 @@ def recieveGoBackN():
 			print ("expected packet: "+str(curState.expectedSeqNum))
 		if dataPacket.type == 2 and dataPacket.seq_num == curState.expectedSeqNum: ## aka EOT received successfully
 			## send an EOT packet back to the receiver
-			lastAcked = dataPacket.seq_num
-			## will send back a bunch of EOT packets to mark the End of transmission
-			for i in range(10): 
-				ackSocket.sendto(packet.packet.create_eot(curState.expectedSeqNum).get_udp_data(), (curState.emHostAddr, curState.ackPort))
-				ackSequence.append(curState.expectedSeqNum)
+			lastAcked = dataPacket
+			## will send back EOT packets to mark the End of transmission
+			# for i in range(10): 
+			ackSocket.sendto(packet.packet.create_eot(curState.expectedSeqNum).get_udp_data(), (curState.emHostAddr, curState.ackPort))
+			ackSequence.append(curState.expectedSeqNum)
 			f = open(curState.filename, "w")
 			f.write("") ## create the file / empty it if there's previous content 
 			f.close()
@@ -53,7 +54,7 @@ def recieveGoBackN():
 		## the recieved data packet is as expected, CAN ACK NOW!!
 		if dataPacket.seq_num == curState.expectedSeqNum: 
 			## send back ack for the received packet
-			lastAcked = dataPacket.seq_num
+			lastAcked = dataPacket
 			ackSocket.sendto(packet.packet.create_ack(curState.expectedSeqNum).get_udp_data(), (curState.emHostAddr, curState.ackPort))
 			ackSequence.append(curState.expectedSeqNum)
 			packets.append(dataPacket)
@@ -63,25 +64,25 @@ def recieveGoBackN():
 
 		else:
 			## send an ack back for the last acked data packet
-			if lastAcked != -1:
-				ackSocket.sendto(packet.packet.create_ack(lastAcked).get_udp_data(), (curState.emHostAddr, curState.ackPort))
+			ackSocket.sendto(lastAcked.get_udp_data(), (curState.emHostAddr, curState.ackPort))
+			ackSequence.append(lastAcked.seq_num)
 #################################################3
-		if DEBUG: 
-			print ("Data Sequence:")
-			datas = ""
-			for data in dataSequence:
-				datas += str(data) + " "
-			print(datas)
-			print ("ACK Sequence:")
-			acks = ""
-			for ack in ackSequence:
-				acks += str(ack) + " " 
-			print(acks)
-			print("PACKET")
-			pack = ""
-			for p in packets:
-				pack += str(p.seq_num) + " " 
-			print(pack)
+		# if DEBUG: 
+		# 	print ("Data Sequence:")
+		# 	datas = ""
+		# 	for data in dataSequence:
+		# 		datas += str(data) + " "
+		# 	print(datas)
+		# 	print ("ACK Sequence:")
+		# 	acks = ""
+		# 	for ack in ackSequence:
+		# 		acks += str(ack) + " " 
+		# 	print(acks)
+		# 	print("PACKET")
+		# 	pack = ""
+		# 	for p in packets:
+		# 		pack += str(p.seq_num) + " " 
+		# 	print(pack)
 ##################################################
 	dataSocket.close()
 	ackSocket.close()
