@@ -51,96 +51,106 @@ def createFiles():
 
 def sendPackets():
 	with lock: 
-		print (threading.currentThread().getName()+": "+ str(threading.active_count()))
+		if DEBUG: print (threading.currentThread().getName()+": "+ str(threading.active_count()) + " ++++++++++++++++++++++++")
 		## mod adjustment of nextseqnum to accommodate eternal Base of 0 and curState N = 10
 		if curState.nextSeqNum >= curState.N: curState.nextSeqNum = curState.nextSeqNum % curState.N
 		## once timer expires all UNACKed packets in window are resent
-		timer = threading.Timer(0.1, resendUnacked)
+		
 		while curState.nextSeqNum < len(packets):
-
 			if curState.nextSeqNum < curState.N:
 				if DEBUG: print("sending packet at index.. "+str(curState.nextSeqNum)+ " with SeqNum: "+str(packets[curState.nextSeqNum].seq_num))
 				## sending the packet over dataSocket 
 				dataSocket.sendto(packets[curState.nextSeqNum].get_udp_data(), (curState.emHostAddr, curState.dataPort)) 
 				sendSequence.append(packets[curState.nextSeqNum].seq_num)
-				if DEBUG:
-					print ("sent : "+str(curState.nextSeqNum))
-					print("LENGTH = " + str(len(packets)))
+				if DEBUG: print ("sent : "+str(curState.nextSeqNum))
+				if DEBUG: print("LENGTH = " + str(len(packets)))
+				timer = threading.Timer(0.1, resendUnacked)
 				if curState.base == curState.nextSeqNum: 
 					timer.start()
 				elif curState.N == curState.nextSeqNum:
 					timer.cancel()
-				curState.nextSeqNum += 1
-				# if curState.nextSeqNum >= len(packets): timer.cancel()
+				curState.nextSeqNum += 1 
 			else:
 				lock.wait()
 
 def resendUnacked():
 	with lock: 
-		if len(packets) < 1: os._exit(0)
-		if DEBUG:
-			print (threading.currentThread().getName()+": "+ str(threading.active_count()))
-			print ("RESENDERRRR : "+str(curState.nextSeqNum) + " " + str(curState.base))
+		if len(packets) < 1: os._exit(0) ## quit thread if there are no more packets left
+		if DEBUG: print (threading.currentThread().getName()+": "+ str(threading.active_count()) + " #####################")
+		if DEBUG: print ("RESENDERRRR : "+str(curState.nextSeqNum) + " " + str(curState.base))
 		## once timer expires this thread yields to sendPackets
-		timer = threading.Timer(0.1, sendPackets)
-		timer.start()
 		## waiting for the first packet to be acked when p-value is too high
 		while not curState.firstPacket:
 			dataSocket.sendto(packets[0].get_udp_data(), (curState.emHostAddr, curState.dataPort))
 			sendSequence.append(packets[0].seq_num)
-			lock.notify()
+			# lock.notify()
 
 		for i in range(curState.base, curState.nextSeqNum):
-			if DEBUG:
-				print ("resent : "+str(i))
-				print("LENGTH = " + str(len(packets)))
+			if DEBUG: print ("resent : "+str(i))
+			if DEBUG: print("LENGTH = " + str(len(packets)))
 			if i >= len(packets): break
 			dataSocket.sendto(packets[i].get_udp_data(), (curState.emHostAddr, curState.dataPort))
-			lock.notify()
-		timer.cancel()
-		lock.notify()
+			# lock.notify()
+		
+		lock.notify() ## go back to the sender thread once retransmitteds
 		
 
 def recvAcks():
+	####################################3  
+	print ("Data Sequence:")
+	datas = ""
+	for data in sendSequence:
+		datas += str(data) + " "
+	print(datas)
+	print ("ACK Sequence:")
+	acks = ""
+	for ack in ackSequence:
+		acks += str(ack) + " " 
+	print(acks)
+	######################################
 	ackSocket = socket(AF_INET, SOCK_DGRAM) # the UDP socket to receive ack packets over
 	ackSocket.bind(('', curState.ackPort))
 	while len(packets) > 0: 
-		if DEBUG:  print (threading.currentThread().getName()+": "+str(threading.active_count()))
+		if DEBUG: print (threading.currentThread().getName()+": "+str(threading.active_count()) + " -=-=-=-=-=-=-=-=-=-=-=-=-=-=-")
 		with lock:
-			if DEBUG: print ("SEQNUM = "+str(curState.nextSeqNum)) 
 			if len(packets) < 0: break
+
+			lock.notify()
+			
+			if DEBUG: print("Receiving ACK from receiver:")
+			ackPacket, addr = ackSocket.recvfrom(2048) 
+			ackPacket = packet.packet.parse_udp_data(ackPacket)
+			if DEBUG: print("recieved ACK For: " + str(ackPacket.seq_num))
+
+			if curState.nextSeqNum == curState.base and curState.firstPacket:
+				lock.wait()
 			## once timer expires all UNACKed packets in window are resent
 			timer = threading.Timer(0.1, resendUnacked) 
 			timer.start()
-			lock.notify()
-			if DEBUG: print("Receiving ACK from receiver:")
-			ackPacket, addr = ackSocket.recvfrom(2048) 
-			
-			ackPacket = packet.packet.parse_udp_data(ackPacket)
-			if DEBUG: print("recieved ACK For: " + str(ackPacket.seq_num))
 			ackSequence.append(ackPacket.seq_num)
 			if ackPacket.seq_num == 0: curState.firstPacket = True ## the first packet was ACKed successfully
 																## safe to continue with the rest
 			topNum = packets[0].seq_num+32
 			ackNum = ackPacket.seq_num+32 
 			if DEBUG: print ("Array top : "+str(packets[0].seq_num) + " - " + " ack seq: " +str(ackPacket.seq_num)) 
+			if DEBUG: print ("SEQNUM = "+str(curState.nextSeqNum)) 
 			## if the incoming ACK is for a packet that's already been ACKed before, ask for another ack
 			if (topNum > ackNum):
+				if DEBUG: print("____acking unsuccessful____")
+				if curState.nextSeqNum >= curState.N: 
+					curState.nextSeqNum = curState.nextSeqNum % curState.N
 				## once timer expires all UNACKed packets in window are resent
-				timer = threading.Timer(0.1, resendUnacked) 
-				timer.start()
-				if DEBUG: print("_____________________operation failed______________________")
+				# timer = threading.Timer(0.1, resendUnacked) 
+				# timer.start()
 				lock.notify()
 				continue
-
-
-			# timer = threading.Timer(0.1, resendUnacked) 
-			# timer.start()
-
-			ackedPacket = packets.pop(0)
-			## readjusting the sequence number here to accommodate for the popped of first element
-			curState.nextSeqNum -= 1
+			#### OTHERWISE: we accept the ACK and remove the already acked elements
+			for i in range(ackNum - topNum + 1):
+				ackedPacket = packets.pop(0)
+				## readjusting the sequence number here to accommodate for the popped of first element
+				curState.nextSeqNum -= 1
 			## readjusting the sequence number here to accommodate to the window size
+			if DEBUG: print ("SEQNUM = "+str(curState.nextSeqNum) + "-- N = " + str(curState.N)) 
 			if curState.nextSeqNum >= curState.N: 
 				curState.nextSeqNum = curState.nextSeqNum % curState.N
 				# lock.notify()
