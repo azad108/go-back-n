@@ -12,6 +12,8 @@ class cur_state:
 		self.ackPort = 0
 		self.emHostAddr = 0
 		self.expectedSeqNum = 0
+		self.transmissionTime = 0
+		self.firstPacket = False
 
 curState = cur_state()
 
