@@ -3,17 +3,15 @@
 
 import string, sys, packet
 from socket import *
-
+DEBUG = False
 packets = []
- 
+
 class cur_state:
 	def __init__(self):
 		self.dataPort = 0
 		self.ackPort = 0
 		self.emHostAddr = 0
 		self.expectedSeqNum = 0
-		self.transmissionTime = 0
-		self.firstPacket = False
 
 curState = cur_state()
 
@@ -23,11 +21,12 @@ def recieveGoBackN():
 	dataSocket.bind(('', curState.dataPort)) 
 	lastAcked = -1
 	while True:
-		print('-----------------------------')
-		print("LEN = "+str(len(packets)))
+		if DEBUG:
+			print('-----------------------------')
+			print("LEN = "+str(len(packets)))
 		dataPacket, addr = dataSocket.recvfrom(6144)
 		dataPacket = packet.packet.parse_udp_data(dataPacket)
-		print("received packet = "+str(dataPacket.seq_num)) 
+		if DEBUG: print("received packet = "+str(dataPacket.seq_num)) 
 		if dataPacket.type == 2 and dataPacket.seq_num == curState.expectedSeqNum: ## aka EOT received successfully
 			## send an EOT packet back to the receiver
 			lastAcked = dataPacket.seq_num
@@ -43,9 +42,9 @@ def recieveGoBackN():
 					f.write(packets[i].data) 
 			f.close()
 			break
-
-		print("data: "+str(dataPacket.seq_num))
-		print ("expected: "+str(curState.expectedSeqNum))
+		if DEBUG:
+			print("data: "+str(dataPacket.seq_num))
+			print ("expected: "+str(curState.expectedSeqNum))
 		# print(dataPacket.data[0:40])
 		if dataPacket.seq_num == curState.expectedSeqNum: ## the recieved data packet is as expected
 			## send back ack for the received packet
@@ -54,7 +53,7 @@ def recieveGoBackN():
 			packets.append(dataPacket)
 			curState.expectedSeqNum += 1
 			curState.expectedSeqNum = curState.expectedSeqNum % 32
-			print ("updated expected: "+str(curState.expectedSeqNum))
+			if DEBUG: print ("updated expected: "+str(curState.expectedSeqNum))
 
 		else:
 			if lastAcked != -1:

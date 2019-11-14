@@ -2,7 +2,10 @@ import string, sys, packet, threading, time, os, datetime
 from socket import *
 
 packets = []
-
+sendSequence = [] 
+ackSequence = []
+DEBUG = True
+## will use this class to determine the packet transmission status
 class cur_state:
 	def __init__(self):
 		self.dataPort = 0
@@ -22,8 +25,10 @@ dataSocket = socket(AF_INET, SOCK_DGRAM) # the UDP socket for sending data packe
 def createFiles():
 	finishTransmission = datetime.datetime.now()
 	executionTime = (finishTransmission - curState.beginTransmission).total_seconds()
+	print("File Transmission with Go-Back-N Completed in: " + str(executionTime) + " seconds")
 	f = open("time.log", "w")
-	f.write(str(executionTime) + " seconds") ## create the file / empty it if there's previous content 
+	f.write(str(executionTime) + " seconds") ## create the file / empty it if there's previous content
+	f.write('\n') 
 	f.close()
 
 	f = open("seqnum.log", "w")
@@ -47,40 +52,48 @@ def createFiles():
 def sendPackets():
 	with lock: 
 		print (threading.currentThread().getName()+": "+ str(threading.active_count()))
+		## mod adjustment of nextseqnum to accommodate eternal Base of 0 and curState N = 10
 		if curState.nextSeqNum >= curState.N: curState.nextSeqNum = curState.nextSeqNum % curState.N
+		## once timer expires all UNACKed packets in window are resent
 		timer = threading.Timer(0.1, resendUnacked)
 		while curState.nextSeqNum < len(packets):
+
 			if curState.nextSeqNum < curState.N:
-				print ("sent : "+str(curState.nextSeqNum))
-				# print("LENGTH = " + str(len(packets)))
-				dataSocket.sendto(packets[curState.nextSeqNum].get_udp_data(), (curState.emHostAddr, curState.dataPort)) ## sending the packet over dataSocket 
+				if DEBUG: print("sending packet at index.. "+str(curState.nextSeqNum)+ " with SeqNum: "+str(packets[curState.nextSeqNum].seq_num))
+				## sending the packet over dataSocket 
+				dataSocket.sendto(packets[curState.nextSeqNum].get_udp_data(), (curState.emHostAddr, curState.dataPort)) 
+				sendSequence.append(packets[curState.nextSeqNum].seq_num)
+				if DEBUG:
+					print ("sent : "+str(curState.nextSeqNum))
+					print("LENGTH = " + str(len(packets)))
 				if curState.base == curState.nextSeqNum: 
 					timer.start()
 				elif curState.N == curState.nextSeqNum:
 					timer.cancel()
-
 				curState.nextSeqNum += 1
 				# if curState.nextSeqNum >= len(packets): timer.cancel()
 			else:
-				lock.wait()		
-
-
+				lock.wait()
 
 def resendUnacked():
 	with lock: 
-		print (threading.currentThread().getName()+": "+ str(threading.active_count()))
-		
-		# print ("RESENDERRRR : "+str(curState.nextSeqNum) + " " + str(curState.base))
+		if len(packets) < 1: os._exit(0)
+		if DEBUG:
+			print (threading.currentThread().getName()+": "+ str(threading.active_count()))
+			print ("RESENDERRRR : "+str(curState.nextSeqNum) + " " + str(curState.base))
+		## once timer expires this thread yields to sendPackets
 		timer = threading.Timer(0.1, sendPackets)
 		timer.start()
 		## waiting for the first packet to be acked when p-value is too high
 		while not curState.firstPacket:
 			dataSocket.sendto(packets[0].get_udp_data(), (curState.emHostAddr, curState.dataPort))
+			sendSequence.append(packets[0].seq_num)
 			lock.notify()
 
 		for i in range(curState.base, curState.nextSeqNum):
-			print ("resent : "+str(i))
-			print("LENGTH = " + str(len(packets)))
+			if DEBUG:
+				print ("resent : "+str(i))
+				print("LENGTH = " + str(len(packets)))
 			if i >= len(packets): break
 			dataSocket.sendto(packets[i].get_udp_data(), (curState.emHostAddr, curState.dataPort))
 			lock.notify()
@@ -92,49 +105,53 @@ def recvAcks():
 	ackSocket = socket(AF_INET, SOCK_DGRAM) # the UDP socket to receive ack packets over
 	ackSocket.bind(('', curState.ackPort))
 	while len(packets) > 0: 
-		print (threading.currentThread().getName()+": "+str(threading.active_count()))
+		if DEBUG:  print (threading.currentThread().getName()+": "+str(threading.active_count()))
 		with lock:
-			print ("SEQNUM = "+str(curState.nextSeqNum)) 
+			if DEBUG: print ("SEQNUM = "+str(curState.nextSeqNum)) 
 			if len(packets) < 0: break
+			## once timer expires all UNACKed packets in window are resent
 			timer = threading.Timer(0.1, resendUnacked) 
 			timer.start()
 			lock.notify()
-			ackPacket, addr = ackSocket.recvfrom(2048)
+			if DEBUG: print("Receiving ACK from receiver:")
+			ackPacket, addr = ackSocket.recvfrom(2048) 
 			
-			print("AZAD")
 			ackPacket = packet.packet.parse_udp_data(ackPacket)
-			print("recieved ACK For: " + str(ackPacket.seq_num))
+			if DEBUG: print("recieved ACK For: " + str(ackPacket.seq_num))
+			ackSequence.append(ackPacket.seq_num)
 			if ackPacket.seq_num == 0: curState.firstPacket = True ## the first packet was ACKed successfully
 																## safe to continue with the rest
 			topNum = packets[0].seq_num+32
 			ackNum = ackPacket.seq_num+32 
-			print ("Array top : "+str(packets[0].seq_num) + " - " + " ack seq: " +str(ackPacket.seq_num)) 
+			if DEBUG: print ("Array top : "+str(packets[0].seq_num) + " - " + " ack seq: " +str(ackPacket.seq_num)) 
+			## if the incoming ACK is for a packet that's already been ACKed before, ask for another ack
 			if (topNum > ackNum):
+				## once timer expires all UNACKed packets in window are resent
 				timer = threading.Timer(0.1, resendUnacked) 
 				timer.start()
-				print("operation failed______________________________________________")
+				if DEBUG: print("_____________________operation failed______________________")
 				lock.notify()
 				continue
 
 
-			print(packets[0].data[0:20] )
-			print(ackPacket.data[0:20])
-			if packets[0].data[0:20] == ackPacket.data[0:20]: print("cFFFFFFFF")
 			# timer = threading.Timer(0.1, resendUnacked) 
 			# timer.start()
+
 			ackedPacket = packets.pop(0)
+			## readjusting the sequence number here to accommodate for the popped of first element
 			curState.nextSeqNum -= 1
+			## readjusting the sequence number here to accommodate to the window size
 			if curState.nextSeqNum >= curState.N: 
 				curState.nextSeqNum = curState.nextSeqNum % curState.N
 				# lock.notify()
-			print("++++++++++++++++LENGTH = " + str(len(packets))) 
-			print(str(ackPacket.type))
+			if DEBUG: print("NEW SHORTER LENGTH = " + str(len(packets))) 
+
 			if ackPacket.type == 2: ## on receipt of EOT packet's ack we exit thread
-				print("END OF TRANSS")
 				dataSocket.close()
 				createFiles()
 				break 	
-			lock.notify()
+			lock.notify() ## Wake up sleeping threads to notify em about the change in
+						## nextseqnum and arraysize
 	ackSocket.close()
 
 
