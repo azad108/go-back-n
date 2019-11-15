@@ -41,9 +41,7 @@ def recieveGoBackN():
 			# for i in range(10): 
 			ackSocket.sendto(packet.packet.create_eot(curState.expectedSeqNum).get_udp_data(), (curState.emHostAddr, curState.ackPort))
 			ackSequence.append(curState.expectedSeqNum)
-			f = open(curState.filename, "w")
-			f.write("") ## create the file / empty it if there's previous content 
-			f.close()
+
 			f = open(curState.filename, "a") ## reopen the empty file to add the packet data
 			for i in range(len(packets)):
 				if packets[i].type == 1:
@@ -96,5 +94,9 @@ def main():
 		curState.ackPort = int(sys.argv[2])
 		curState.dataPort = int(sys.argv[3])
 		curState.filename = sys.argv[4] 
+		f = open(curState.filename, "w")
+		f.write("") ## create the file / empty it if there's previous content 
+		f.close()
 		recieveGoBackN()
+
 main()
