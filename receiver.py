@@ -3,7 +3,7 @@
 
 import string, sys, packet
 from socket import *
-DEBUG = True
+DEBUG = False
 
 packets = []
 dataSequence = [] 

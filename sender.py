@@ -4,7 +4,7 @@ from socket import *
 packets = []
 sendSequence = [] 
 ackSequence = []
-DEBUG = True
+DEBUG = False
 ## will use this class to determine the packet transmission status
 class cur_state:
 	def __init__(self):
@@ -127,10 +127,11 @@ def recvAcks():
 			if not curState.firstPacket and curState.lastAcked != None: 
 				resendFirstT =threading.Thread(name='FIRST SENDER', target=resendFirst, args = ())
 				resendFirstT.start()
-				lock.wait() 
-
+				lock.wait()
+			## the case when the entire window was already acked. need to transfer to sender here
 			if curState.nextSeqNum == 0 and curState.firstPacket: 
 				lock.wait()
+
 			if DEBUG: print("Receiving ACK from receiver:")
 			ackPacket, addr = ackSocket.recvfrom(6144) 
 			ackPacket = packet.packet.parse_udp_data(ackPacket)
@@ -163,10 +164,12 @@ def recvAcks():
 				if curState.nextSeqNum >= curState.N: 
 					curState.nextSeqNum = curState.nextSeqNum % curState.N
 				## once timer expires all UNACKed packets in window are resent
-				timer = threading.Timer(0, resendUnacked) 
+				timer = threading.Timer(0, resendUnacked)
 				timer.start()
 				lock.notify() ## notify sender to start reserding # important
 				continue  
+			timer = threading.Timer(0, resendUnacked)
+			timer.start()
 			#### OTHERWISE: we accept the ACK and remove the already acked elements
 			for i in range(ackNum - topNum + 1):
 				if len(packets) <= 0: break
