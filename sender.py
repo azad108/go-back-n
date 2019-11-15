@@ -116,7 +116,7 @@ def recvAcks():
 		if DEBUG: print (threading.currentThread().getName()+": "+str(threading.active_count()) + " -=-=-=-=-=-=-=-=-=-=-=-=-=-=-")
 		while True:
 			if DEBUG: print ("SEQNUM = "+str(curState.nextSeqNum) + "-- N = " + str(curState.N)) 
-			if len(packets) <= 0 or packets[0].type == 2 or curState.EOT:
+			if len(packets) <= 0  or curState.EOT:
 				curState.EOT = True
 				dataSocket.close()
 				createFiles()
@@ -152,19 +152,20 @@ def recvAcks():
 			timer.start()
 			ackSequence.append(ackPacket.seq_num)
 			
+			## wrapping around because it's only 0-31
 			topNum = packets[0].seq_num+32
 			ackNum = ackPacket.seq_num+32 
 			if DEBUG: print ("Array top : "+str(packets[0].seq_num) + " - " + " ack seq: " +str(ackPacket.seq_num)) 
 			if DEBUG: print ("SEQNUM = "+str(curState.nextSeqNum)) 
 			## if the incoming ACK is for a packet that's already been ACKed before, ask for another ack
 			if (topNum > ackNum ):
-				lock.notify() ## notify sender to start reserding # important
 				if DEBUG: print("____acking unsuccessful____")
 				if curState.nextSeqNum >= curState.N: 
 					curState.nextSeqNum = curState.nextSeqNum % curState.N
 				## once timer expires all UNACKed packets in window are resent
-				timer = threading.Timer(0.05, resendUnacked) 
+				timer = threading.Timer(0, resendUnacked) 
 				timer.start()
+				lock.notify() ## notify sender to start reserding # important
 				continue  
 			#### OTHERWISE: we accept the ACK and remove the already acked elements
 			for i in range(ackNum - topNum + 1):
