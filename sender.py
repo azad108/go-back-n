@@ -79,8 +79,9 @@ def sendPackets():
 def resendFirst():
 	with lock:
 		if DEBUG: print (threading.currentThread().getName()+": "+ str(threading.active_count()) + " #####################")
-		if len(packets) < 1 or curState.EOT: os._exit(0) ## quit thread if there are no more packets left
-		if DEBUG: print (threading.currentThread().getName()+": "+ str(threading.active_count()) + " #####################")
+		if len(packets) <= 0 or curState.EOT or curState.firstPacket: 
+			lock.notify()
+			os._exit(0) ## quit thread if there are no more packets left 
 		if DEBUG: print ("RESENDERRRR : "+str(curState.nextSeqNum) + " " + str(curState.base))
 		## once timer expires this thread yields to sendPackets
 		## waiting for the first packet to be acked when p-value is too high 
@@ -104,7 +105,6 @@ def resendUnacked():
 			if DEBUG: print("LENGTH = " + str(len(packets)))
 			if i >= len(packets): break
 			dataSocket.sendto(packets[i].get_udp_data(), (curState.emHostAddr, curState.dataPort))
-			# lock.notify()
 		
 		lock.notify() ## go back to the sender thread once retransmitted !!
 		
@@ -114,7 +114,7 @@ def recvAcks():
 	ackSocket.bind(('', curState.ackPort))
 	with lock:
 		if DEBUG: print (threading.currentThread().getName()+": "+str(threading.active_count()) + " -=-=-=-=-=-=-=-=-=-=-=-=-=-=-")
-		while len(packets) > 0:
+		while True:
 			if DEBUG: print ("TSEQNUM = "+str(curState.nextSeqNum) + "-- N = " + str(curState.N)) 
 			if len(packets) <= 0 or packets[0].type == 2 or curState.EOT:
 				curState.EOT = True
@@ -148,7 +148,7 @@ def recvAcks():
 			if curState.nextSeqNum == curState.base and curState.firstPacket:
 				lock.wait()
 			## once timer expires all UNACKed packets in window are resent
-			timer = threading.Timer(0.15, resendUnacked) 
+			timer = threading.Timer(0.05, resendUnacked) 
 			timer.start()
 			ackSequence.append(ackPacket.seq_num)
 			
@@ -158,13 +158,13 @@ def recvAcks():
 			if DEBUG: print ("SEQNUM = "+str(curState.nextSeqNum)) 
 			## if the incoming ACK is for a packet that's already been ACKed before, ask for another ack
 			if (topNum > ackNum ):
+				lock.notify() ## notify sender to start reserding # important
 				if DEBUG: print("____acking unsuccessful____")
 				if curState.nextSeqNum >= curState.N: 
 					curState.nextSeqNum = curState.nextSeqNum % curState.N
 				## once timer expires all UNACKed packets in window are resent
 				timer = threading.Timer(0.05, resendUnacked) 
 				timer.start()
-				lock.notify()
 				continue  
 			#### OTHERWISE: we accept the ACK and remove the already acked elements
 			for i in range(ackNum - topNum + 1):
@@ -172,8 +172,7 @@ def recvAcks():
 				ackedPacket = packets.pop(0)
 				curState.lastAcked = ackedPacket
 				## readjusting the sequence number here to accommodate for the popped of first element
-				curState.nextSeqNum -= 1 
-				# 	# lock.notify()
+				curState.nextSeqNum -= 1  
 				if DEBUG: print("NEW SHORTER LENGTH = " + str(len(packets))) 
 
 				if ackPacket.type == 2: ## on receipt of EOT packet's ack we exit thread
@@ -189,7 +188,6 @@ def recvAcks():
 			if DEBUG: print ("SEQNUM = "+str(curState.nextSeqNum) + "-- N = " + str(curState.N)) 
 			lock.notify() ## Wake up sleeping threads to notify em about the change in
 						## nextseqnum and arraysize
-		lock.notify
 	ackSocket.close()
 
 
