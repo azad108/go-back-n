@@ -67,22 +67,22 @@ def recieveGoBackN():
 			ackSocket.sendto(lastAcked.get_udp_data(), (curState.emHostAddr, curState.ackPort))
 			ackSequence.append(lastAcked.seq_num)
 #################################################3
-		# if DEBUG: 
-		# 	print ("Data Sequence:")
-		# 	datas = ""
-		# 	for data in dataSequence:
-		# 		datas += str(data) + " "
-		# 	print(datas)
-		# 	print ("ACK Sequence:")
-		# 	acks = ""
-		# 	for ack in ackSequence:
-		# 		acks += str(ack) + " " 
-		# 	print(acks)
-		# 	print("PACKET")
-		# 	pack = ""
-		# 	for p in packets:
-		# 		pack += str(p.seq_num) + " " 
-		# 	print(pack)
+		if DEBUG: 
+			print ("Data Sequence:")
+			datas = ""
+			for data in dataSequence:
+				datas += str(data) + " "
+			print(datas)
+			print ("ACK Sequence:")
+			acks = ""
+			for ack in ackSequence:
+				acks += str(ack) + " " 
+			print(acks)
+			print("PACKET")
+			pack = ""
+			for p in packets:
+				pack += str(p.seq_num) + " " 
+			print(pack)
 ##################################################
 	dataSocket.close()
 	ackSocket.close()

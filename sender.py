@@ -110,29 +110,27 @@ def resendUnacked():
 		
 
 def recvAcks():
-	####################################3  
-	print ("Data Sequence:")
-	datas = ""
-	for data in sendSequence:
-		datas += str(data) + " "
-	print(datas)
-	print ("ACK Sequence:")
-	acks = ""
-	for ack in ackSequence:
-		acks += str(ack) + " " 
-	print(acks)
-	######################################
 	ackSocket = socket(AF_INET, SOCK_DGRAM) # the UDP socket to receive ack packets over
 	ackSocket.bind(('', curState.ackPort))
-	while len(packets) > 0: 
+	with lock:
 		if DEBUG: print (threading.currentThread().getName()+": "+str(threading.active_count()) + " -=-=-=-=-=-=-=-=-=-=-=-=-=-=-")
-		with lock:
-			if len(packets) < 0: break 
+		while len(packets) > 0:
+			if DEBUG: print ("TSEQNUM = "+str(curState.nextSeqNum) + "-- N = " + str(curState.N)) 
+			if len(packets) <= 0 or packets[0].type == 2 or curState.EOT:
+				curState.EOT = True
+				dataSocket.close()
+				createFiles()
+				break 
+			if curState.nextSeqNum >= curState.N: 
+				curState.nextSeqNum = curState.nextSeqNum % curState.N
+				lock.wait()
 			if not curState.firstPacket and curState.lastAcked != None: 
 				resendFirstT =threading.Thread(name='FIRST SENDER', target=resendFirst, args = ())
 				resendFirstT.start()
 				lock.wait() 
 
+			if curState.nextSeqNum == 0 and curState.firstPacket: 
+				lock.wait()
 			if DEBUG: print("Receiving ACK from receiver:")
 			ackPacket, addr = ackSocket.recvfrom(6144) 
 			ackPacket = packet.packet.parse_udp_data(ackPacket)
@@ -140,13 +138,17 @@ def recvAcks():
 			if ackPacket.seq_num == 0 and not curState.firstPacket: 
 				curState.firstPacket = True ## the first packet was ACKed successfully
 																## safe to continue with the rest
-			elif ackPacket.seq_num == 31 and curState.firstPacket:
-				continue
+			elif ackPacket.seq_num == 31 and not curState.firstPacket: ## checking if it was the
+				print("DEFAULT ACK RECEIVED")
+				resendFirstT =threading.Thread(name='FIRST SENDER', target=resendFirst, args = ())
+				resendFirstT.start()
+				lock.wait() 
+				continue									## initial default packet from sender
 
 			if curState.nextSeqNum == curState.base and curState.firstPacket:
 				lock.wait()
 			## once timer expires all UNACKed packets in window are resent
-			timer = threading.Timer(0.1, resendUnacked) 
+			timer = threading.Timer(0.15, resendUnacked) 
 			timer.start()
 			ackSequence.append(ackPacket.seq_num)
 			
@@ -155,36 +157,39 @@ def recvAcks():
 			if DEBUG: print ("Array top : "+str(packets[0].seq_num) + " - " + " ack seq: " +str(ackPacket.seq_num)) 
 			if DEBUG: print ("SEQNUM = "+str(curState.nextSeqNum)) 
 			## if the incoming ACK is for a packet that's already been ACKed before, ask for another ack
-			if (topNum > ackNum):
+			if (topNum > ackNum ):
 				if DEBUG: print("____acking unsuccessful____")
 				if curState.nextSeqNum >= curState.N: 
 					curState.nextSeqNum = curState.nextSeqNum % curState.N
 				## once timer expires all UNACKed packets in window are resent
-				# timer = threading.Timer(0.1, resendUnacked) 
-				# timer.start()
+				timer = threading.Timer(0.05, resendUnacked) 
+				timer.start()
 				lock.notify()
-				continue
+				continue  
 			#### OTHERWISE: we accept the ACK and remove the already acked elements
-			# for i in range(ackNum - topNum + 1):
-			if len(packets) < 0: break
-			ackedPacket = packets.pop(0)
-			curState.lastAcked = ackedPacket
-			## readjusting the sequence number here to accommodate for the popped of first element
-			curState.nextSeqNum -= 1
+			for i in range(ackNum - topNum + 1):
+				if len(packets) <= 0: break
+				ackedPacket = packets.pop(0)
+				curState.lastAcked = ackedPacket
+				## readjusting the sequence number here to accommodate for the popped of first element
+				curState.nextSeqNum -= 1 
+				# 	# lock.notify()
+				if DEBUG: print("NEW SHORTER LENGTH = " + str(len(packets))) 
+
+				if ackPacket.type == 2: ## on receipt of EOT packet's ack we exit thread
+					curState.EOT = True
+					dataSocket.close()
+					createFiles()
+					break 
+			if len(packets) < 0: break	
+			if DEBUG: print ("BSEQNUM = "+str(curState.nextSeqNum) + "-- N = " + str(curState.N)) 
 			## readjusting the sequence number here to accommodate to the window size
-			if DEBUG: print ("SEQNUM = "+str(curState.nextSeqNum) + "-- N = " + str(curState.N)) 
 			if curState.nextSeqNum >= curState.N or curState.nextSeqNum < 0: 
 				curState.nextSeqNum = curState.nextSeqNum % curState.N
-				# lock.notify()
-			if DEBUG: print("NEW SHORTER LENGTH = " + str(len(packets))) 
-
-			if ackPacket.type == 2: ## on receipt of EOT packet's ack we exit thread
-				curState.EOT = True
-				dataSocket.close()
-				createFiles()
-				break 	
+			if DEBUG: print ("SEQNUM = "+str(curState.nextSeqNum) + "-- N = " + str(curState.N)) 
 			lock.notify() ## Wake up sleeping threads to notify em about the change in
 						## nextseqnum and arraysize
+		lock.notify
 	ackSocket.close()
 
 
