@@ -4,7 +4,7 @@ from socket import *
 packets = []
 sendSequence = [] 
 ackSequence = []
-DEBUG = False
+DEBUG = True
 ## will use this class to determine the packet transmission status
 class cur_state:
 	def __init__(self):
@@ -154,12 +154,12 @@ def recvAcks():
 			ackSequence.append(ackPacket.seq_num)
 			
 			## wrapping around because it's only 0-31
-			topNum = packets[0].seq_num+32
+			base = packets[0].seq_num+32
 			ackNum = ackPacket.seq_num+32 
 			if DEBUG: print ("Array top : "+str(packets[0].seq_num) + " - " + " ack seq: " +str(ackPacket.seq_num)) 
 			if DEBUG: print ("SEQNUM = "+str(curState.nextSeqNum)) 
 			## if the incoming ACK is for a packet that's already been ACKed before, ask for another ack
-			if (topNum > ackNum ):
+			if (base > ackNum ):
 				if DEBUG: print("____acking unsuccessful____")
 				if curState.nextSeqNum >= curState.N: 
 					curState.nextSeqNum = curState.nextSeqNum % curState.N
@@ -171,7 +171,7 @@ def recvAcks():
 			timer = threading.Timer(0, resendUnacked)
 			timer.start()
 			#### OTHERWISE: we accept the ACK and remove the already acked elements
-			for i in range(ackNum - topNum + 1):
+			for i in range(ackNum - base + 1):
 				if len(packets) <= 0: break
 				ackedPacket = packets.pop(0)
 				curState.lastAcked = ackedPacket
