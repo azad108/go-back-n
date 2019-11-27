@@ -80,7 +80,6 @@ def resendFirst():
 	with lock:
 		if DEBUG: print (threading.currentThread().getName()+": "+ str(threading.active_count()) + " #####################")
 		if len(packets) <= 0 or curState.EOT or curState.firstPacket: 
-			lock.notify()
 			os._exit(0) ## quit thread if there are no more packets left 
 		if DEBUG: print ("RESENDERRRR : "+str(curState.nextSeqNum) + " " + str(curState.base))
 		## once timer expires this thread yields to sendPackets
@@ -120,9 +119,10 @@ def recvAcks():
 			if len(packets) <= 0  or curState.EOT:
 				curState.EOT = True
 				dataSocket.close()
-				createFiles()
 				break 
-			if curState.lastAcked and curState.lastAcked.seq_num < packets[curState.base].seq_num: lock.wait()
+			## when the previous ack received was for already ACKed packet
+			if curState.lastAcked and curState.lastAcked.seq_num < packets[curState.base].seq_num: 
+				lock.wait()
 			if len(packets) == 1: ## ie only the EOT is left
 				lock.wait()
 			if curState.nextSeqNum >= curState.N: 
@@ -146,9 +146,9 @@ def recvAcks():
 			elif ackPacket.seq_num == 31 and not curState.firstPacket and curState.lastAcked != None: 
 			## checking if it was the DEFAULT ACK THAT JUST CAME IN
 				print("DEFAULT ACK RECEIVED")
-				resendFirstT =threading.Thread(name='FIRST SENDER', target=resendFirst, args = ())
+				resendFirstT = threading.Thread(name='FIRST SENDER', target=resendFirst, args = ())
 				resendFirstT.start()
-				# lock.wait() ### 
+				lock.wait() ###
 				continue ## initial default packet from sender
 
 			if curState.nextSeqNum == curState.base and curState.firstPacket:
@@ -186,7 +186,7 @@ def recvAcks():
 
 				if ackPacket.type == 2: ## on receipt of EOT packet's ack we exit thread
 					curState.EOT = True
-					dataSocket.close()
+					dataSocket.close() 
 					createFiles()
 					break 
 			if len(packets) < 0: break	  
