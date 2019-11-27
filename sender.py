@@ -115,23 +115,27 @@ def recvAcks():
 	with lock:
 		if DEBUG: print (threading.currentThread().getName()+": "+str(threading.active_count()) + " -=-=-=-=-=-=-=-=-=-=-=-=-=-=-")
 		while True:
+			lock.notify()
 			if DEBUG: print ("SEQNUM = "+str(curState.nextSeqNum) + "-- N = " + str(curState.N)) 
 			if len(packets) <= 0  or curState.EOT:
 				curState.EOT = True
 				dataSocket.close()
 				createFiles()
 				break 
+			if curState.lastAcked and curState.lastAcked.seq_num < packets[curState.base].seq_num: lock.wait()
+			if len(packets) == 1: ## ie only the EOT is left
+				lock.wait()
 			if curState.nextSeqNum >= curState.N: 
 				curState.nextSeqNum = curState.nextSeqNum % curState.N
-				lock.wait()
+				lock.notify()
 			if not curState.firstPacket and curState.lastAcked != None: 
-				resendFirstT =threading.Thread(name='FIRST SENDER', target=resendFirst, args = ())
+				resendFirstT = threading.Thread(name='FIRST SENDER', target=resendFirst, args = ())
 				resendFirstT.start()
-				lock.wait()
+				# lock.wait()
 			## the case when the entire window was already acked. need to transfer to sender here
 			if curState.nextSeqNum == 0 and curState.firstPacket: 
 				lock.wait()
-
+			if DEBUG and curState.lastAcked: print("LAST ACKED WAS: " + str(curState.lastAcked.seq_num))
 			if DEBUG: print("Receiving ACK from receiver:")
 			ackPacket, addr = ackSocket.recvfrom(6144) 
 			ackPacket = packet.packet.parse_udp_data(ackPacket)
@@ -139,11 +143,12 @@ def recvAcks():
 			if ackPacket.seq_num == 0 and not curState.firstPacket: 
 				curState.firstPacket = True ## the first packet was ACKed successfully
 																## safe to continue with the rest
-			elif ackPacket.seq_num == 31 and not curState.firstPacket and curState.lastAcked != None: ## checking if it was the
+			elif ackPacket.seq_num == 31 and not curState.firstPacket and curState.lastAcked != None: 
+			## checking if it was the DEFAULT ACK THAT JUST CAME IN
 				print("DEFAULT ACK RECEIVED")
 				resendFirstT =threading.Thread(name='FIRST SENDER', target=resendFirst, args = ())
 				resendFirstT.start()
-				lock.wait() ### 
+				# lock.wait() ### 
 				continue ## initial default packet from sender
 
 			if curState.nextSeqNum == curState.base and curState.firstPacket:
