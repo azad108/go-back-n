@@ -4,7 +4,7 @@ from socket import *
 packets = []
 sendSequence = [] 
 ackSequence = []
-DEBUG = False
+DEBUG = True
 ## will use this class to determine the packet transmission status
 class cur_state:
 	def __init__(self):
@@ -119,7 +119,8 @@ def recvAcks():
 			if len(packets) <= 0  or curState.EOT:
 				curState.EOT = True
 				dataSocket.close()
-				break 
+				break
+
 			if curState.lastAcked:
 				## wrapping around because it's only 0-31
 				baseNow = packets[curState.base].seq_num
@@ -127,12 +128,12 @@ def recvAcks():
 				if baseNow < 10 and lastAckNum > 22: baseNow += 32
 				elif lastAckNum < 10 and baseNow > 22: lastAckNum += 32
 				if DEBUG: print ("BASE SEQ: " +str(baseNow)+ " - " + "LAST ACKED SEQ: " + str(lastAckNum))
-				## when the previous ack received was for an already-ACKed packet
+				## when the previous ack received was for an already-ACKed packet, sleep
 				if lastAckNum < baseNow:
 					lock.wait()
 
 			if len(packets) == 1: ## ie only the EOT is left
-				lock.wait()
+				lock.wait()       ## must wake up sender to send EOT
 			if curState.nextSeqNum >= curState.N: 
 				curState.nextSeqNum = curState.nextSeqNum % curState.N
 				lock.notify()
@@ -141,7 +142,7 @@ def recvAcks():
 				resendFirstT.start()
 			## the case when the entire window was already acked. need to transfer to sender here
 			if curState.nextSeqNum == 0 and curState.firstPacket: 
-				lock.notify()
+				lock.notify_all()
 			if DEBUG and curState.lastAcked: print("LAST ACKED WAS: " + str(curState.lastAcked.seq_num))
 			if DEBUG: print("Receiving ACK from receiver:")
 			ackPacket, addr = ackSocket.recvfrom(6144) 
@@ -152,13 +153,13 @@ def recvAcks():
 																## safe to continue with the rest
 			elif ackPacket.seq_num == 31 and not curState.firstPacket and curState.lastAcked == None: 
 			## checking if it was the DEFAULT ACK THAT JUST CAME IN
-				print("DEFAULT ACK RECEIVED")
+				if DEBUG: print("DEFAULT ACK RECEIVED")
 				resendFirstT = threading.Thread(name='FIRST SENDER', target=resendFirst, args = ())
 				resendFirstT.start()
 				lock.wait() ###
-				continue ## initial default packet from sender
+				continue ## initial default packet from sender 
 
-			if curState.nextSeqNum == curState.base and curState.firstPacket:
+			if curState.nextSeqNum == curState.base and curState.firstPacket: 
 				lock.wait()
 			## once timer expires all UNACKed packets in window are resent
 			timer = threading.Timer(0.05, resendUnacked) 
