@@ -4,7 +4,7 @@ from socket import *
 packets = []
 sendSequence = [] 
 ackSequence = []
-DEBUG = True
+DEBUG = False
 ## will use this class to determine the packet transmission status
 class cur_state:
 	def __init__(self):
@@ -100,7 +100,7 @@ def resendUnacked():
 		## waiting for the first packet to be acked when p-value is too high 
 
 		for i in range(curState.base, curState.nextSeqNum):
-			if DEBUG: print ("resent : "+str(i))
+			if DEBUG: print ("resent : "+str(packets[i].seq_num))
 			if DEBUG: print("LENGTH = " + str(len(packets)))
 			if i >= len(packets): break
 			dataSocket.sendto(packets[i].get_udp_data(), (curState.emHostAddr, curState.dataPort))
@@ -121,15 +121,16 @@ def recvAcks():
 				dataSocket.close()
 				break 
 			if curState.lastAcked:
-				if DEBUG: print ("BASE SEQ: " +str(packets[curState.base].seq_num)+ " - " + "LAST ACKED SEQ: " + str(curState.lastAcked.seq_num))
 				## wrapping around because it's only 0-31
 				baseNow = packets[curState.base].seq_num
 				lastAckNum = curState.lastAcked.seq_num
-				if baseNow < 10 and ackNum > 22: baseNow += 32
+				if baseNow < 10 and lastAckNum > 22: baseNow += 32
 				elif lastAckNum < 10 and baseNow > 22: lastAckNum += 32
-				## when the previous ack received was for already ACKed packet
-				if curState.lastAcked and lastAckNum < baseNow: 
+				if DEBUG: print ("BASE SEQ: " +str(baseNow)+ " - " + "LAST ACKED SEQ: " + str(lastAckNum))
+				## when the previous ack received was for an already-ACKed packet
+				if lastAckNum < baseNow:
 					lock.wait()
+
 			if len(packets) == 1: ## ie only the EOT is left
 				lock.wait()
 			if curState.nextSeqNum >= curState.N: 
@@ -140,7 +141,7 @@ def recvAcks():
 				resendFirstT.start()
 			## the case when the entire window was already acked. need to transfer to sender here
 			if curState.nextSeqNum == 0 and curState.firstPacket: 
-				lock.wait()
+				lock.notify()
 			if DEBUG and curState.lastAcked: print("LAST ACKED WAS: " + str(curState.lastAcked.seq_num))
 			if DEBUG: print("Receiving ACK from receiver:")
 			ackPacket, addr = ackSocket.recvfrom(6144) 
@@ -170,6 +171,7 @@ def recvAcks():
 			if base < 10 and ackNum > 22: base += 32
 			elif ackNum < 10 and base > 22: ackNum += 32
 			if DEBUG: print ("Array top : "+str(packets[0].seq_num) + " - " + " ack seq: " +str(ackPacket.seq_num)) 
+			if DEBUG: print ("BASE : "+str(packets[0].seq_num) + " - " + " ACKNUM: " +str(ackPacket.seq_num)) 
 			if DEBUG: print ("SEQNUM = "+str(curState.nextSeqNum)) 
 			## if the incoming ACK is for a packet that's already been ACKed before, ask for another ack
 			if (base > ackNum):
