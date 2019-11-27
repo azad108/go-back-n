@@ -3,7 +3,7 @@
 
 import string, sys, packet
 from socket import *
-DEBUG = True
+DEBUG = False
 
 packets = []
 dataSequence = [] 
@@ -36,8 +36,7 @@ def recieveGoBackN():
 				ackSocket.sendto(lastAcked.get_udp_data(), (curState.emHostAddr, curState.ackPort))
 				ackSequence.append(lastAcked.seq_num)
 
-		dataPacket, addr = dataSocket.recvfrom(6144)
-		dataPacket = packet.packet.parse_udp_data(dataPacket)
+		dataPacket = packet.packet.parse_udp_data(dataSocket.recv(6144))
 		dataSequence.append(dataPacket.seq_num)
 		if DEBUG: 
 			print("received packet = "+str(dataPacket.seq_num)) 
@@ -45,8 +44,7 @@ def recieveGoBackN():
 		if dataPacket.type == 2 and dataPacket.seq_num == curState.expectedSeqNum: ## aka EOT received successfully
 			## send an EOT packet back to the receiver
 			lastAcked = dataPacket
-			## will send back EOT packets to mark the End of transmission
-			# for i in range(10): 
+			## will send back EOT packets to mark the End of transmission 
 			ackSocket.sendto(packet.packet.create_eot(curState.expectedSeqNum).get_udp_data(), (curState.emHostAddr, curState.ackPort))
 			ackSequence.append(curState.expectedSeqNum)
 
