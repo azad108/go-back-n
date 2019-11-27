@@ -120,9 +120,16 @@ def recvAcks():
 				curState.EOT = True
 				dataSocket.close()
 				break 
-			## when the previous ack received was for already ACKed packet
-			if curState.lastAcked and curState.lastAcked.seq_num < packets[curState.base].seq_num: 
-				lock.wait()
+			if curState.lastAcked:
+				if DEBUG: print ("BASE SEQ: " +str(packets[curState.base].seq_num)+ " - " + "LAST ACKED SEQ: " + str(curState.lastAcked.seq_num))
+				## wrapping around because it's only 0-31
+				baseNow = packets[curState.base].seq_num
+				lastAckNum = curState.lastAcked.seq_num
+				if baseNow < 10 and ackNum > 22: baseNow += 32
+				elif lastAckNum < 10 and baseNow > 22: lastAckNum += 32
+				## when the previous ack received was for already ACKed packet
+				if curState.lastAcked and lastAckNum < baseNow: 
+					lock.wait()
 			if len(packets) == 1: ## ie only the EOT is left
 				lock.wait()
 			if curState.nextSeqNum >= curState.N: 
@@ -131,7 +138,6 @@ def recvAcks():
 			if not curState.firstPacket and curState.lastAcked != None: 
 				resendFirstT = threading.Thread(name='FIRST SENDER', target=resendFirst, args = ())
 				resendFirstT.start()
-				# lock.wait()
 			## the case when the entire window was already acked. need to transfer to sender here
 			if curState.nextSeqNum == 0 and curState.firstPacket: 
 				lock.wait()
@@ -143,7 +149,7 @@ def recvAcks():
 			if ackPacket.seq_num == 0 and not curState.firstPacket: 
 				curState.firstPacket = True ## the first packet was ACKed successfully
 																## safe to continue with the rest
-			elif ackPacket.seq_num == 31 and not curState.firstPacket and curState.lastAcked != None: 
+			elif ackPacket.seq_num == 31 and not curState.firstPacket and curState.lastAcked == None: 
 			## checking if it was the DEFAULT ACK THAT JUST CAME IN
 				print("DEFAULT ACK RECEIVED")
 				resendFirstT = threading.Thread(name='FIRST SENDER', target=resendFirst, args = ())
@@ -159,12 +165,14 @@ def recvAcks():
 			ackSequence.append(ackPacket.seq_num)
 			
 			## wrapping around because it's only 0-31
-			base = packets[0].seq_num+32
-			ackNum = ackPacket.seq_num+32 
+			base = packets[0].seq_num
+			ackNum = ackPacket.seq_num
+			if base < 10 and ackNum > 22: base += 32
+			elif ackNum < 10 and base > 22: ackNum += 32
 			if DEBUG: print ("Array top : "+str(packets[0].seq_num) + " - " + " ack seq: " +str(ackPacket.seq_num)) 
 			if DEBUG: print ("SEQNUM = "+str(curState.nextSeqNum)) 
 			## if the incoming ACK is for a packet that's already been ACKed before, ask for another ack
-			if (base > ackNum ):
+			if (base > ackNum):
 				if DEBUG: print("____acking unsuccessful____")
 				if curState.nextSeqNum >= curState.N: 
 					curState.nextSeqNum = curState.nextSeqNum % curState.N
@@ -173,9 +181,9 @@ def recvAcks():
 				timer.start()
 				lock.notify() ## notify sender to start reserding # important
 				continue  
-			timer = threading.Timer(0, resendUnacked)
+			timer = threading.Timer(0.5, resendUnacked)
 			timer.start()
-			#### OTHERWISE: we accept the ACK and remove the already acked elements
+			#### OTHERWISE: we accept the ACK and remove all previously acked elements
 			for i in range(ackNum - base + 1):
 				if len(packets) <= 0: break
 				ackedPacket = packets.pop(0)
@@ -188,8 +196,7 @@ def recvAcks():
 					curState.EOT = True
 					dataSocket.close() 
 					createFiles()
-					break 
-			if len(packets) < 0: break	  
+					break 	  
 			## readjusting the sequence number here to accommodate to the window size
 			if curState.nextSeqNum >= curState.N or curState.nextSeqNum < 0: 
 				curState.nextSeqNum = curState.nextSeqNum % curState.N

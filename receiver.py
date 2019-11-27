@@ -8,6 +8,7 @@ DEBUG = True
 packets = []
 dataSequence = [] 
 ackSequence = []
+firstReceived = False # determines if the first valid data packet was recieved
 
 class cur_state:
 	def __init__(self):
@@ -19,6 +20,7 @@ class cur_state:
 curState = cur_state()
 
 def recieveGoBackN():
+	global firstReceived
 	dataSocket = socket(AF_INET, SOCK_DGRAM) # the UDP socket for receiving data packets over
 	ackSocket = socket(AF_INET, SOCK_DGRAM) # the UDP socket to receive ack packets over
 	dataSocket.bind(('', curState.dataPort)) 
@@ -28,6 +30,12 @@ def recieveGoBackN():
 		if DEBUG:
 			print('-----------------------------')
 			print("LEN = "+str(len(packets))) 
+		if not firstReceived: ## in higher p-value networks keep sending a bunch of 
+								## initial acks to ensure one of them make it to the sender
+			for i in range(5):
+				ackSocket.sendto(lastAcked.get_udp_data(), (curState.emHostAddr, curState.ackPort))
+				ackSequence.append(lastAcked.seq_num)
+
 		dataPacket, addr = dataSocket.recvfrom(6144)
 		dataPacket = packet.packet.parse_udp_data(dataPacket)
 		dataSequence.append(dataPacket.seq_num)
@@ -53,6 +61,7 @@ def recieveGoBackN():
 		if dataPacket.seq_num == curState.expectedSeqNum: 
 			## send back ack for the received packet
 			lastAcked = dataPacket
+			firstReceived = True
 			ackSocket.sendto(packet.packet.create_ack(curState.expectedSeqNum).get_udp_data(), (curState.emHostAddr, curState.ackPort))
 			ackSequence.append(curState.expectedSeqNum)
 			packets.append(dataPacket)
